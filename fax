@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# Author: Arturo 'Buanzo' Busleiman
+import os
+import sys
+import argparse
+from pprint import pprint
+from Fax.fax_core import FAXCore
+from Fax.fax_plugin import load_plugins, FAXPluginBase
+from Fax.fax_config import FAXConfig
+
+VERSION = '0.1.0'
+
+if __name__ == "__main__":
+    print('>>> pyflask-restful-assistant aka frasspy <<<')
+    defc = '{}/frasspy.conf'.format(os.getcwd())
+    deft = '{}/templates/'.format(os.getcwd())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config",
+                        default=defc,
+                        help="Config file path ({})".format(defc))
+    parser.add_argument("--version",
+                        help="Show version and paths",
+                        action="store_true")
+    parser.add_argument("-l", "--list",
+                        help="List available plugins",
+                        action="store_true")
+    parser.add_argument("-n", "--needs",
+                        help="Run dependency check on plugins and report back",
+                        action="store_true")
+    parser.add_argument("-D", "--dump",
+                        help="Dumps configuration",
+                        action="store_true")
+    args = parser.parse_args()
+    if args.version:
+        FAXConfig.update()
+        print('version: {}'.format(VERSION))
+        print('Templates Path : {}'.format(FAXConfig.pluginsdir))
+        print('Plugins Path   : {}'.format(FAXConfig.templatesdir))
+        sys.exit(0)
+    try:
+        fax = FAXCore(cfgPath=args.config, checkOnly=args.needs)
+    except:  # TODO: implement better exception/error handling
+        errmsg = "fax: Invalid or unable to read config file ({})"
+        print(errmsg.format(args.config))
+        sys.exit(2)
+    if fax is None:
+        print("fax: No configuration file specified.")
+        sys.exit(1)
+
+    # Load plugins. Plugins may use sys.exit(255) on error
+    plugins = load_plugins([FAXConfig.pluginsdir])
+
+    if args.list is True:
+        FAXPluginBase.prettyPrint()
+        sys.exit(0)
+    elif args.dump is True:
+        pprint(fax.config())
+        sys.exit(0)
+
+    # Check if output path exists and is a directory we
+    # can write to
+    if fax.checkOutputDir() is False:
+        print("fax: output_dir does not exist or is not a directory.")
+        print("fax: you must create it yourself.")
+        sys.exit(3)
+
+    # Still alive? then call FAXCore.main()
+    fax.main(plugins=plugins)

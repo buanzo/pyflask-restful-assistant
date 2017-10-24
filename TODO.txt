@@ -1,0 +1,9 @@
+[x] Define Templating system to use
+[ ] Define Configuration file system to use
+[ ] Define Plugin system to use
+[x] Test Templating system to use
+[ ] Test Configuration file system to use
+[ ] Test Plugin system to use
+[ ] Implement Main feature
+[ ] Implement other features
+

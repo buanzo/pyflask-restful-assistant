@@ -1,0 +1,183 @@
+http://jinja.pocoo.org/docs/2.9/
+
+variables:
+
+BASENAME
+flask-restful api server identifier, top level, for example: FAPI (used as FAPI and fapi, depending on context)
+
+BACKNAME
+A secondary identifier, used for features that will be exposed over the API, and not the API module itself,
+for example: CP1FW, used as cp1fw and CP1FW depending on context.
+
+PRIVNAME
+Another flask-restful api server identifier, used when some BASENAME server calls require privileges. In this context,
+BASENAME server uses the PRIVNAME server features over http. This allows for privilege separation and further
+input control. For example: PAPI (used as PAPI or papi depending on context).
+
+STRUCTURE
+
+
+./BASENAME.py				# running this starts the flask-restful http server
+					# CONFIGVALUE(BASENAME)
+
+./PRIVNAME.py				# running this starts the flask-restful privileged operations server
+					# FEATURE(privileged_server)
+					# depends CONFIGVALUE(PRIVNAME)
+
+./pathmagic.py				# allows to import stuff from inside BASENAME subfolder, automagically
+					# FEATURE(pathmagic,default=on)
+
+
+./api/BACKNAME_$SERVICE.py		# A file for each1 BACKNAME service classname:
+					# DEPENDS(BACKNAME_SERVICES = list,of,items)
+					# DEPENDS(BACKNAME_PATHS = service:/path/<param>,etc,etc)
+./api/BASENAME_constants.py		# a dedicated file for constants (fapi_globals.py off cp1fw)
+					# FEATURE(constants)
+./api/PRIVNAME_constants.py		# a dedicated file for privileged constants
+					# FEATURE(privileged_constants)
+
+./api/BASENAME_util.py			# a dedicated file for utility functions
+					# FEATURE(utilityfile)
+./api/PRIVNAME_util.py			# a dedicated file for utility functions
+					# FEATURE(privileged_utilityfile)
+
+./api/BASENAME_syslog.py		# A syslog service that can be imported as:
+					#   from LOW(BASENAME)_syslog import UPPER(BASENAME)Syslog
+					# which would end-up generated as:
+					#   from fapi_syslog import FAPISyslog
+					# FEATURE(syslog)
+
+./api/BASENAME_dbtools.py		# A mysql/mariadb database service that can be imported as:
+					#   from LOW(BASENAME)_dbtools import UPPER(BASENAME)Db
+					# which would end-up generated as:
+					#  from fapi_dbtools import FAPIDbd
+					# FEATURE(dbtools)
+					# depends CONFIGVALUE(DBTOOLS[])
+					# depends CONFIGVALUE(DBTOOLS_READONLY[])
+
+./api/PRIVNAME_dbtools.py		# A mysql/mariadb database service that can be imported as:
+					#   from LOW(PRIVNAME)_dbtools import UPPER(PRIVNAME)Db
+					# FEATURE(privileged_dbtools)
+					# depends CONFIGVALUE(PRIVILEGED_DBTOOLS[])
+					# Useful for further separation.
+					# NOTE: coder can choose to access both services, of course.
+
+FEATURES can be turned on/off, to simplify skeleton-structure. Features might have different on/off default values.
+
+
+CONFIGURATION
+
+A configuration file for pyflask-api-generator requires at LEAST, a BASENAME and BACKNAME:
+
+BASENAME = fapi
+BACKNAME = cp1fw
+
+
+a more complex (and useful) config file could look like this:
+
+
+FEATURES = privileged_server,constants,utilityfile,dbtools,syslog
+BASENAME = fapi
+PRIVNAME = papi
+BACKNAME = cp1fw
+BACKNAME_SERVICES = service1,service2
+BACKNAME_PATHS = service1:/service1/<someparam>,/service1/<someparam>/<someid>; service2:/service2/<id>;
+DBTOOLS = {'user':'username','pass':'password','host':'hostname', 'db':'databasename'}
+DBTOOLS_READONLY = {'user':'readonly_username','pass':'otherpassword','host':'hostname', 'db':'databasename'}
+
+That configuration would create the following:
+
+fapi.py
+papi.py
+pathmagic.py # FEATURE(pathmagic) is on by default
+api/cp1fw_service1.py
+api/cp1fw_service2.py
+api/fapi_dbtools.py
+api/fapi_syslog.py
+api/fapi_util.py
+api/fapi_constants.py
+
+
+
+
+Alternative syntax for configuration:
+
+[global]
+BASENAME = baseapi
+PRIVNAME = basepriv
+FEATURES = privileged_server,constants,utilityfile,dbtools,syslog
+BACKNAME = backname
+BACKNAME_SERVICES = service1,service2
+output_dir = /tmp/api
+
+[service1]
+paths = /service1/<someparam>,/service1/<someparam>/<someid>
+
+[service2]
+paths = /service2/<id>
+
+[dbtools]
+user = rwUser
+pass = rwPassword
+host = rwHostname
+db = rwDatabase
+
+[dbtools_readonly]
+user = roUser
+pass = roPassword
+host = roHostname
+db = roDatabase
+
+
+
+=============== estructura de plugins aka features ===================
+
+Ideas:
+
+tener una clase FAXPlugin y que los plugins extiendan desde ahi
+el FAXCore debe leer los features solicitados en FAXConfig['global'] y verificar que los plugins existan
+Cada FAXPlugin va a declarar que CAMPOS requiere en su SECCION, y tendra un metodo para recibir esos datos y validarlos.
+
+El nombre de seccion es igual al nombre del feature. Por este motivo, ningun nombre de BACKNAME_SERVICES
+puede llamarse igual que un feature.
+
+
+vamos a ser lo mas declarativos posibles desde los plugins, para siempre tener data con que optimizar la ejecucion,
+validar rapidamente, etc. y ante todo: no hay que tratar por defecto al programador como un inutil, al menos no desde el framework.
+es como que un framework ESPERA que el tipo se vaya a equivocar, y le pone protecciones extra.  si demandamos este nivel de declaraciones
+(por ejemplo, que el plugin le diga al sistema QUE NECESITA, y el sistema si puede se lo va a dar, y lo ejecutara
+
+
+
+cada plugin va a crear uno o mas archivos, y los hooks seran:
+
+* config data declaration
+* feature-dependency check, returns a list of features this plugin depends on.
+* path inquiry (el plugin ejecuta una funcion que debe retornar un [] de relative paths de los archivos que creara),
+esto es para detectar conflictos ANTES de efectivamente escribir algun archivo. -> esto se tradujo en que cada
+objeto, durante el hook render, crea objetos FAXRender, que contienen toda la informacion necesaria.
+
+LA API para plugins se diseña con este concepto:
+
+La idea es que los plugins no requieran acceder a los internals de Fax (como Fax.fax_config o Fax.fax_util), sino
+a un Fax.plugin_api que exporte features y haga de interfaz contra los internals, que tienen mas chance de cambiar.
+
+Esto provee un simple mecanismo para backwards-compatibility
+
+LA API para plugins ofrecera estos features:
+
+* acceso a configuracion
+* metodos simples para render de los templates+variables
+* metodo para escribir a un archivo, o incluso, generar metodos de diff interactivos o unified patches.
+de esta manera, un plugin podria acceder al render de otro plugin y modificarlo de alguna manera, por ejemplo.
+* metodos para generar un curl script que pruebe cada endpoint sobre el verbo http correspondiente
+* mecanismo de control de status de ejecucion (por ejemplo, que plugins ya fueron ejecutados, que archivos cada plugin
+dice que va a crear, para detectar conflictos, etc)
+
+
+
+***** que los objetos render tengan el nombre del plugin que los creó
+***** en filter hook, todos lo splugins reciben todos los objetos render, pueden modificar el texto generado.
+
+
+
