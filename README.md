@@ -3,7 +3,7 @@ pyflask-api-generator (also known as Fax - Flask API eXtrapolator)
 
 # Introduction
 
-pyflask-api-generator is a plugin-based tool that generates Python 3 source code
+pyflask-api-generator is a plugin-based scaffolding tool that generates Python 3 source code
 for the main purpose of implement RESTful API server applications using the
 Flask-RESTful module. It is built using Python 3.5, Jinja2 templating library
 and other standard Python modules.
